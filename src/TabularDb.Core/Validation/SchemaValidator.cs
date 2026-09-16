@@ -9,6 +9,8 @@ public static class SchemaValidator
 {
     public const int MaxNameLength = 64;
 
+    private static readonly char[] ForbiddenTableChars = ['/', '\\', '?', '#', '%'];
+
     public static ValidationResult Validate(Database? database, string? tableName, IReadOnlyList<Field>? fields) =>
         Validate(database, tableName, fields?.Select(f => new FieldDefinition(f.Name, f.Type?.Name)).ToList());
 
@@ -21,6 +23,8 @@ public static class SchemaValidator
             result.AddError("Назва таблиці не може бути порожньою");
         else if (name.Length > MaxNameLength)
             result.AddError($"Назва таблиці довша за {MaxNameLength} символи");
+        else if (name is "." or ".." || name.IndexOfAny(ForbiddenTableChars) >= 0)
+            result.AddError("Назва таблиці не може бути «.» чи «..» і не може містити символи / \\ ? # %");
         else if (database is not null && database.HasTable(name))
             result.AddError($"Таблиця '{name}' вже існує");
 

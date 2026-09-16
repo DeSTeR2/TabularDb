@@ -1,0 +1,27 @@
+@if (Busy)
+{
+    <p>Завантаження…</p>
+}
+@if (Error is not null)
+{
+    <p><strong>Помилка:</strong> @Error.Message</p>
+    @if (Error.Errors.Count > 0)
+    {
+        <ul>
+            @foreach (var error in Error.Errors)
+            {
+                <li>@error</li>
+            }
+        </ul>
+    }
+}
+@if (!string.IsNullOrEmpty(Info))
+{
+    <p>@Info</p>
+}
+
+@code {
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public ApiException? Error { get; set; }
+    [Parameter] public string? Info { get; set; }
+}

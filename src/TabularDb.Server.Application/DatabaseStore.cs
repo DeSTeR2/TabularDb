@@ -163,7 +163,7 @@ public sealed class DatabaseStore
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            throw new StorageException($"Не вдалося видалити файл бази: {ex.Message}", ex);
+            throw StorageException.Io($"Не вдалося видалити файл бази '{fileName}'", ex);
         }
     }
 

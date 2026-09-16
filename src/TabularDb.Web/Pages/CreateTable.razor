@@ -1,0 +1,92 @@
+@page "/db/{Db}/new-table"
+@using TabularDb.Core.Validation
+@inherits ApiComponentBase
+
+<PageTitle>Нова таблиця</PageTitle>
+
+<p><a href="@Links.Database(Db)">← База «@Db»</a></p>
+<h1>Нова таблиця</h1>
+
+<form @onsubmit="CreateAsync">
+    <p><label>Назва таблиці: <input @bind="_name" maxlength="64" size="20" /></label></p>
+
+    <table border="1" cellpadding="4">
+        <thead>
+            <tr><th>№</th><th>Назва поля</th><th>Тип</th><th></th></tr>
+        </thead>
+        <tbody>
+            @for (var i = 0; i < _fields.Count; i++)
+            {
+                var field = _fields[i];
+                var number = i + 1;
+                <tr @key="field">
+                    <td>@number</td>
+                    <td><input @bind="field.Name" maxlength="64" size="8" /></td>
+                    <td>
+                        <select @bind="field.Type">
+                            <option value="">—</option>
+                            @foreach (var type in _types)
+                            {
+                                <option value="@type">@type</option>
+                            }
+                        </select>
+                    </td>
+                    <td><button type="button" @onclick="() => _fields.Remove(field)">Прибрати</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <p><button type="button" @onclick="() => _fields.Add(new FieldModel())">Додати поле</button></p>
+
+    @if (_localErrors.Count > 0)
+    {
+        <ul>
+            @foreach (var error in _localErrors)
+            {
+                <li>@error</li>
+            }
+        </ul>
+    }
+    <Messages Busy="Busy" Error="Error" />
+
+    <p>
+        <button type="submit" disabled="@Busy">Створити</button>
+        <a href="@Links.Database(Db)">Скасувати</a>
+    </p>
+</form>
+
+@code {
+    private sealed class FieldModel
+    {
+        public string Name { get; set; } = "";
+        public string Type { get; set; } = "";
+    }
+
+    private readonly List<FieldModel> _fields = [new()];
+    private IReadOnlyList<string> _types = TabularDb.Core.Types.TypeRegistry.Names;
+    private IReadOnlyList<string> _localErrors = [];
+    private string _name = "";
+
+    [Parameter] public string Db { get; set; } = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RunAsync(async () => _types = (await Api.ListDatabasesAsync()).Types);
+    }
+
+    private async Task CreateAsync()
+    {
+        var name = _name.Trim();
+        var fields = _fields.Select(f => new FieldDto(f.Name.Trim(), f.Type)).ToList();
+        _localErrors = SchemaValidator
+            .Validate(null, name, fields.Select(f => new FieldDefinition(f.Name, f.Type)).ToList())
+            .Errors;
+        Error = null;
+        if (_localErrors.Count > 0)
+            return;
+
+        TableSchemaDto? created = null;
+        if (await RunAsync(async () => created = await Api.CreateTableAsync(Db, new CreateTableRequest(name, fields))))
+            Navigation.NavigateTo(Links.Table(Db, created!.Name));
+    }
+}

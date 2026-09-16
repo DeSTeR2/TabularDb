@@ -1,0 +1,25 @@
+@if (_asking)
+{
+    <span>@Question </span>
+    <button type="button" disabled="@Disabled" @onclick="ConfirmAsync">Так</button>
+    <button type="button" @onclick="() => _asking = false">Ні</button>
+}
+else
+{
+    <button type="button" disabled="@Disabled" @onclick="() => _asking = true">@Text</button>
+}
+
+@code {
+    private bool _asking;
+
+    [Parameter, EditorRequired] public string Text { get; set; } = "";
+    [Parameter, EditorRequired] public string Question { get; set; } = "";
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public EventCallback OnConfirm { get; set; }
+
+    private async Task ConfirmAsync()
+    {
+        _asking = false;
+        await OnConfirm.InvokeAsync();
+    }
+}

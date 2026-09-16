@@ -1,0 +1,100 @@
+@using TabularDb.Core.Types
+
+<fieldset>
+    <legend>@(Row is null ? "Новий рядок" : $"Рядок {Row.Id}")</legend>
+    <form @onsubmit="SubmitAsync">
+        <table cellpadding="2">
+            @for (var i = 0; i < Schema.Fields.Count; i++)
+            {
+                var index = i;
+                var field = Schema.Fields[index];
+                <tr>
+                    <td><label for="field-@index">@field.Name (@field.Type)</label></td>
+                    <td><input id="field-@index" @bind="_values[index]" size="14" /></td>
+                    <td>@Hint(field.Type)</td>
+                    <td>@if (_errors[index] is { } error) { <strong>@error</strong> }</td>
+                </tr>
+            }
+        </table>
+        <p>Порожнє поле означає відсутнє значення.</p>
+        @if (_otherErrors.Count > 0)
+        {
+            <ul>
+                @foreach (var error in _otherErrors)
+                {
+                    <li>@error</li>
+                }
+            </ul>
+        }
+        <button type="submit" disabled="@_busy">Зберегти</button>
+        <button type="button" disabled="@_busy" @onclick="OnCancel">Скасувати</button>
+    </form>
+</fieldset>
+
+@code {
+    private string[] _values = [];
+    private string?[] _errors = [];
+    private List<string> _otherErrors = [];
+    private bool _busy;
+
+    [Parameter, EditorRequired] public TableSchemaDto Schema { get; set; } = null!;
+    [Parameter] public RowDto? Row { get; set; }
+    [Parameter, EditorRequired] public Func<IReadOnlyList<string?>, Task<ApiException?>> Submit { get; set; } = null!;
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    protected override void OnInitialized()
+    {
+        _values = Schema.Fields.Select((_, i) => Row?.Values.ElementAtOrDefault(i) ?? "").ToArray();
+        _errors = new string?[Schema.Fields.Count];
+        _otherErrors = [];
+    }
+
+    private static string Hint(string? type) =>
+        TypeRegistry.TryGet(type, out var dataType) ? dataType.FormatHint : "";
+
+    private async Task SubmitAsync()
+    {
+        var values = _values.Select(v => string.IsNullOrWhiteSpace(v) ? null : v).ToList();
+        _otherErrors = [];
+        var valid = true;
+        for (var i = 0; i < Schema.Fields.Count; i++)
+        {
+            _errors[i] = null;
+            if (TypeRegistry.TryGet(Schema.Fields[i].Type, out var type) && !type.TryParse(values[i], out _, out var error))
+            {
+                _errors[i] = error ?? "некоректне значення";
+                valid = false;
+            }
+        }
+        if (!valid)
+            return;
+
+        _busy = true;
+        try
+        {
+            var failure = await Submit(values);
+            if (failure is not null)
+                ShowServerErrors(failure);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void ShowServerErrors(ApiException failure)
+    {
+        var errors = failure.Errors.Count > 0 ? failure.Errors : [failure.Message];
+        foreach (var error in errors)
+        {
+            var index = -1;
+            for (var i = 0; i < Schema.Fields.Count; i++)
+                if (error.StartsWith($"Поле '{Schema.Fields[i].Name}'", StringComparison.OrdinalIgnoreCase))
+                    index = i;
+            if (index >= 0)
+                _errors[index] = error;
+            else
+                _otherErrors.Add(error);
+        }
+    }
+}

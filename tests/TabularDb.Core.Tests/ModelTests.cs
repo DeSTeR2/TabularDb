@@ -34,6 +34,21 @@ public class ModelTests
         Assert.Throws<ValidationException>(() => new Database("Db").CreateTable("T", []));
     }
 
+    [Theory]
+    [InlineData(".")]
+    [InlineData("..")]
+    [InlineData("a/b")]
+    [InlineData("a\\b")]
+    [InlineData("what?")]
+    [InlineData("50%")]
+    [InlineData("#1")]
+    public void SchemaValidator_RejectsUnsafeTableNames(string name)
+    {
+        var result = SchemaValidator.Validate(null, name, [new FieldDefinition("A", "integer")]);
+
+        Assert.Single(result.Errors);
+    }
+
     [Fact]
     public void Database_CreateAndDropTable_TracksModification()
     {

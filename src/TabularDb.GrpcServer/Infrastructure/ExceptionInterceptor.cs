@@ -36,6 +36,11 @@ public sealed class ExceptionInterceptor(ILogger<ExceptionInterceptor> logger) :
         {
             throw new RpcException(new Status(StatusCode.AlreadyExists, ex.Message));
         }
+        catch (StorageException ex) when (ex.IsIoError)
+        {
+            logger.LogError(ex, "Storage I/O error in {Method}", context.Method);
+            throw new RpcException(new Status(StatusCode.Internal, "Помилка доступу до сховища на сервері"));
+        }
         catch (StorageException ex)
         {
             logger.LogWarning(ex, "Storage error in {Method}", context.Method);

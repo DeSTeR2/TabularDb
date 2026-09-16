@@ -4,12 +4,16 @@
     <Project Path="src/TabularDb.Core/TabularDb.Core.csproj" />
     <Project Path="src/TabularDb.Desktop/TabularDb.Desktop.csproj" />
     <Project Path="src/TabularDb.GrpcServer/TabularDb.GrpcServer.csproj" />
+    <Project Path="src/TabularDb.RestContracts/TabularDb.RestContracts.csproj" />
     <Project Path="src/TabularDb.Server.Application/TabularDb.Server.Application.csproj" />
     <Project Path="src/TabularDb.Storage/TabularDb.Storage.csproj" />
+    <Project Path="src/TabularDb.Web/TabularDb.Web.csproj" />
+    <Project Path="src/TabularDb.WebApi/TabularDb.WebApi.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/TabularDb.Core.Tests/TabularDb.Core.Tests.csproj" />
     <Project Path="tests/TabularDb.Integration.Tests/TabularDb.Integration.Tests.csproj" />
     <Project Path="tests/TabularDb.Storage.Tests/TabularDb.Storage.Tests.csproj" />
+    <Project Path="tests/TabularDb.WebApi.Tests/TabularDb.WebApi.Tests.csproj" />
   </Folder>
 </Solution>

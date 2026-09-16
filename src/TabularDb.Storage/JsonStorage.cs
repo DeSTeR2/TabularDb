@@ -20,7 +20,7 @@ public sealed class JsonStorage : IStorage
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            throw new StorageException($"Не вдалося записати файл '{path}': {ex.Message}", ex);
+            throw StorageException.Io($"Не вдалося записати файл бази '{Path.GetFileName(path)}'", ex);
         }
         database.MarkSaved();
     }
@@ -34,7 +34,7 @@ public sealed class JsonStorage : IStorage
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            throw new StorageException($"Не вдалося прочитати файл '{path}': {ex.Message}", ex);
+            throw StorageException.Io($"Не вдалося прочитати файл бази '{Path.GetFileName(path)}'", ex);
         }
         return DatabaseSerializer.FromJson(json, nameOverride);
     }

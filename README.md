@@ -44,3 +44,35 @@ az containerapp update --name tabulardb-grpc --resource-group tabulardb --min-re
 ```
 
 Щоб бази не зникали після перезапуску, до контейнера треба підключити том Azure Files у `/data`. У контейнері gRPC слухає порт 8080, gRPC-Web — 8081. Якщо HTTP/2 до сервера не проходить, розгорніть застосунок з `--target-port 8081` і транспортом `http`, а в клієнті увімкніть режим gRPC-Web.
+
+## Етап 3: веб-версія
+
+| Проєкт | Призначення |
+|---|---|
+| `TabularDb.RestContracts` | DTO та маршрути REST API |
+| `TabularDb.WebApi` | REST API (ASP.NET Core) і хостинг веб-клієнта |
+| `TabularDb.Web` | веб-клієнт Blazor WebAssembly |
+| `tests/TabularDb.WebApi.Tests` | тести REST API |
+
+```
+dotnet run --project src/TabularDb.WebApi
+```
+
+Застосунок відкривається за адресою `http://localhost:5200`, бази зберігаються в каталозі `data-web`. Опис API в режимі розробки: `/openapi/v1.json`, інтерактивна документація: `/scalar`.
+
+| Метод | Шлях | Дія |
+|---|---|---|
+| GET | `/api/databases` | список баз і підтримуваних типів |
+| POST | `/api/databases` | створити базу |
+| DELETE | `/api/databases/{db}` | видалити базу |
+| POST | `/api/databases/{db}/save` | зберегти на диск |
+| POST | `/api/databases/{db}/load` | перечитати з диска |
+| GET | `/api/databases/{db}/export` | завантажити файл бази |
+| POST | `/api/databases/import` | імпортувати файл (multipart) |
+| GET, POST | `/api/databases/{db}/tables` | список таблиць, створити таблицю |
+| GET, DELETE | `/api/databases/{db}/tables/{table}` | схема таблиці, видалити таблицю |
+| GET, POST | `/api/databases/{db}/tables/{table}/rows` | сторінка рядків (`skip`, `take`), додати рядок |
+| PUT, DELETE | `/api/databases/{db}/tables/{table}/rows/{id}` | змінити, видалити рядок |
+| POST | `/api/databases/{db}/tables/{table}/remove-duplicates?dryRun=` | вилучити повторювані рядки або переглянути їх |
+
+Коди відповідей: 400 — помилки валідації (`errors`), 404 — не знайдено, 409 — вже існує, 422 — пошкоджений файл.
