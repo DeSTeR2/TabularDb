@@ -1,0 +1,111 @@
+@page "/"
+@inherits ApiComponentBase
+
+<PageTitle>Бази даних</PageTitle>
+
+<h1>Бази даних</h1>
+
+<Messages Busy="Busy" Error="Error" Info="@Info" />
+
+@if (_list is not null)
+{
+    @if (_list.Databases.Count == 0)
+    {
+        <p>Баз даних ще немає.</p>
+    }
+    else
+    {
+        <table border="1" cellpadding="4">
+            <thead>
+                <tr><th>Назва</th><th>Стан</th><th>Дії</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var db in _list.Databases)
+                {
+                    <tr @key="db.Name">
+                        <td><a href="@Links.Database(db.Name)">@db.Name</a></td>
+                        <td>@(db.IsModified ? "є незбережені зміни" : db.IsLoaded ? "відкрита" : "збережена на диску")</td>
+                        <td>
+                            <ConfirmButton Text="Видалити" Question="@($"Видалити базу '{db.Name}' разом з файлом?")"
+                                           Disabled="Busy" OnConfirm="() => DeleteAsync(db.Name)" />
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+<h2>Нова база</h2>
+<form @onsubmit="CreateAsync">
+    <label>Назва: <input @bind="_newName" maxlength="64" /></label>
+    <button type="submit" disabled="@Busy">Створити</button>
+</form>
+<p>Назва може містити літери, цифри, «_» та «-».</p>
+
+<h2>Імпорт з файлу</h2>
+<p><InputFile OnChange="SelectFile" accept=".json" /></p>
+<p><label>Назва бази: <input @bind="_importName" maxlength="64" /></label></p>
+<p><label><input type="checkbox" @bind="_overwrite" /> Замінити, якщо база з такою назвою вже існує</label></p>
+<p><button type="button" disabled="@(Busy || _file is null)" @onclick="ImportAsync">Імпортувати</button></p>
+
+@code {
+    private DatabaseListDto? _list;
+    private string _newName = "";
+    private string _importName = "";
+    private bool _overwrite;
+    private IBrowserFile? _file;
+
+    protected override Task OnInitializedAsync() => RefreshAsync();
+
+    private async Task<bool> RefreshAsync()
+    {
+        var ok = await RunAsync(async () => _list = await Api.ListDatabasesAsync());
+        if (!ok)
+            _list = null;
+        return ok;
+    }
+
+    private async Task CreateAsync()
+    {
+        var name = _newName.Trim();
+        if (await RunAsync(() => Api.CreateDatabaseAsync(name)))
+            Navigation.NavigateTo(Links.Database(name));
+    }
+
+    private async Task DeleteAsync(string name)
+    {
+        if (await RunAsync(() => Api.DeleteDatabaseAsync(name)) && await RefreshAsync())
+            Info = $"Базу '{name}' видалено.";
+    }
+
+    private void SelectFile(InputFileChangeEventArgs e)
+    {
+        _file = e.File;
+        var fileName = e.File.Name;
+        _importName = fileName.EndsWith(".tdb.json", StringComparison.OrdinalIgnoreCase)
+            ? fileName[..^".tdb.json".Length]
+            : Path.GetFileNameWithoutExtension(fileName);
+    }
+
+    private async Task ImportAsync()
+    {
+        var file = _file;
+        if (file is null)
+            return;
+        if (file.Size > TabularApiClient.MaxImportSize)
+        {
+            Error = new ApiException(null, "Файл завеликий (понад 60 МБ)");
+            return;
+        }
+
+        var name = _importName.Trim();
+        var ok = await RunAsync(async () =>
+        {
+            await using var stream = file.OpenReadStream(TabularApiClient.MaxImportSize);
+            await Api.ImportDatabaseAsync(name, stream, file.Name, _overwrite);
+        });
+        if (ok && await RefreshAsync())
+            Info = $"Базу '{name}' імпортовано.";
+    }
+}

@@ -1,0 +1,159 @@
+@page "/db/{Db}/t/{Table}"
+@inherits ApiComponentBase
+
+<PageTitle>@Table — @Db</PageTitle>
+
+<p><a href="@Links.Database(Db)">← База «@Db»</a></p>
+<h1>Таблиця «@Table»</h1>
+
+<Messages Busy="Busy" Error="Error" Info="@Info" />
+
+@if (_schema is not null)
+{
+    <p>
+        <button type="button" disabled="@Busy" @onclick="StartAdd">Додати рядок</button>
+        <button type="button" disabled="@Busy" @onclick="LoadPageAsync">Оновити</button>
+        <a href="@Links.Dedup(Db, Table)">Вилучити повторювані рядки</a>
+    </p>
+
+    @if (_editing)
+    {
+        <RowEditor @key="_editorKey" Schema="_schema" Row="_editRow" Submit="SaveRowAsync" OnCancel="() => _editing = false" />
+    }
+
+    @if (_page is not null)
+    {
+        <table border="1" cellpadding="4">
+            <thead>
+                <tr>
+                    <th>id</th>
+                    @foreach (var field in _schema.Fields)
+                    {
+                        <th>@field.Name : @field.Type</th>
+                    }
+                    <th>Дії</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in _page.Rows)
+                {
+                    <tr @key="row.Id">
+                        <td>@row.Id</td>
+                        @foreach (var value in row.Values)
+                        {
+                            <td>@value</td>
+                        }
+                        <td>
+                            <button type="button" disabled="@Busy" @onclick="() => StartEdit(row)">Редагувати</button>
+                            <ConfirmButton Text="Видалити" Question="@($"Видалити рядок {row.Id}?")"
+                                           Disabled="Busy" OnConfirm="() => DeleteRowAsync(row.Id)" />
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (_page.Total == 0)
+        {
+            <p>Рядків немає.</p>
+        }
+        <p>
+            <button type="button" disabled="@(Busy || _skip == 0)" @onclick="() => ChangePageAsync(-PageSize)">◀</button>
+            @(_page.Total == 0 ? 0 : _skip + 1)–@(_skip + _page.Rows.Count) з @_page.Total
+            <button type="button" disabled="@(Busy || _skip + PageSize >= _page.Total)" @onclick="() => ChangePageAsync(PageSize)">▶</button>
+        </p>
+    }
+}
+
+@code {
+    private const int PageSize = ApiRoutes.DefaultPageSize;
+
+    private TableSchemaDto? _schema;
+    private RowPageDto? _page;
+    private int _skip;
+    private bool _editing;
+    private RowDto? _editRow;
+    private int _editorKey;
+
+    [Parameter] public string Db { get; set; } = "";
+    [Parameter] public string Table { get; set; } = "";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _schema = null;
+        _page = null;
+        _skip = 0;
+        _editing = false;
+        if (await RunAsync(async () => _schema = await Api.GetSchemaAsync(Db, Table)))
+            await LoadPageAsync();
+    }
+
+    private Task<bool> LoadPageAsync() => RunAsync(async () =>
+    {
+        var page = await Api.GetRowsAsync(Db, Table, _skip, PageSize);
+        if (page.Rows.Count == 0 && _skip > 0 && page.Total > 0)
+        {
+            _skip = (page.Total - 1) / PageSize * PageSize;
+            page = await Api.GetRowsAsync(Db, Table, _skip, PageSize);
+        }
+        _page = page;
+    });
+
+    private async Task ChangePageAsync(int delta)
+    {
+        _skip = Math.Max(0, _skip + delta);
+        await LoadPageAsync();
+    }
+
+    private void StartAdd()
+    {
+        _editRow = null;
+        _editorKey++;
+        _editing = true;
+    }
+
+    private void StartEdit(RowDto row)
+    {
+        _editRow = row;
+        _editorKey++;
+        _editing = true;
+    }
+
+    private async Task<ApiException?> SaveRowAsync(IReadOnlyList<string?> values)
+    {
+        var row = _editRow;
+        try
+        {
+            if (row is null)
+            {
+                var added = await Api.AddRowAsync(Db, Table, values);
+                _skip = (_page?.Total ?? 0) / PageSize * PageSize;
+                Info = $"Додано рядок {added.Id}.";
+            }
+            else
+            {
+                await Api.UpdateRowAsync(Db, Table, row.Id, values);
+                Info = $"Рядок {row.Id} змінено.";
+            }
+        }
+        catch (ApiException ex)
+        {
+            return ex;
+        }
+
+        _editing = false;
+        var info = Info;
+        if (await LoadPageAsync())
+        {
+            Info = info;
+            StateHasChanged();
+        }
+        return null;
+    }
+
+    private async Task DeleteRowAsync(long id)
+    {
+        _editing = false;
+        if (await RunAsync(() => Api.DeleteRowAsync(Db, Table, id)) && await LoadPageAsync())
+            Info = $"Рядок {id} видалено.";
+    }
+}

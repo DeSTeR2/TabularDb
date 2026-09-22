@@ -1,0 +1,140 @@
+@page "/db/{Db}/dedup"
+@inherits ApiComponentBase
+
+<PageTitle>Вилучення повторів — @Db</PageTitle>
+
+<p><a href="@Links.Database(Db)">← База «@Db»</a></p>
+<h1>Вилучення повторюваних рядків</h1>
+
+<Messages Busy="Busy" Error="Error" Info="@Info" />
+
+@if (_tables is not null)
+{
+    @if (_tables.Count == 0)
+    {
+        <p>У базі немає таблиць.</p>
+    }
+    else
+    {
+        <p>
+            <label>
+                Таблиця:
+                <select value="@_table" @onchange="SelectTable">
+                    @foreach (var table in _tables)
+                    {
+                        <option value="@table">@table</option>
+                    }
+                </select>
+            </label>
+            <button type="button" disabled="@Busy" @onclick="PreviewAsync">Переглянути</button>
+            <button type="button" disabled="@(Busy || _preview is not { RemovedCount: > 0 })" @onclick="RemoveAsync">Вилучити</button>
+        </p>
+        <p>Порівнюються значення після розбору, тому 9:05 і 09:05:00 вважаються однаковими. Лишається перше входження.</p>
+    }
+}
+
+@if (_preview is not null && _schema is not null)
+{
+    @if (_preview.RemovedCount == 0)
+    {
+        <p>Повторюваних рядків немає.</p>
+    }
+    else
+    {
+        <p>
+            Буде вилучено рядків: @_preview.RemovedCount
+            @if (_preview.RemovedRows.Count < _preview.RemovedCount)
+            {
+                <span>(показано перші @_preview.RemovedRows.Count)</span>
+            }
+        </p>
+        <table border="1" cellpadding="4">
+            <thead>
+                <tr>
+                    <th>id</th>
+                    @foreach (var field in _schema.Fields)
+                    {
+                        <th>@field.Name : @field.Type</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in _preview.RemovedRows)
+                {
+                    <tr>
+                        <td>@row.Id</td>
+                        @foreach (var value in row.Values)
+                        {
+                            <td>@value</td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@if (_removedFrom is not null)
+{
+    <p><a href="@Links.Table(Db, _removedFrom)">Відкрити таблицю «@_removedFrom»</a></p>
+}
+
+@code {
+    private IReadOnlyList<string>? _tables;
+    private string? _table;
+    private TableSchemaDto? _schema;
+    private DedupResultDto? _preview;
+    private string? _removedFrom;
+
+    [Parameter] public string Db { get; set; } = "";
+
+    [SupplyParameterFromQuery(Name = "table")]
+    public string? InitialTable { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _preview = null;
+        _removedFrom = null;
+        await RunAsync(async () =>
+        {
+            _tables = (await Api.ListTablesAsync(Db)).Tables;
+            _table = _tables.FirstOrDefault(t => string.Equals(t, InitialTable, StringComparison.OrdinalIgnoreCase))
+                ?? _tables.FirstOrDefault();
+        });
+    }
+
+    private void SelectTable(ChangeEventArgs e)
+    {
+        _table = e.Value as string;
+        _preview = null;
+        _removedFrom = null;
+        Info = null;
+    }
+
+    private async Task PreviewAsync()
+    {
+        var table = _table;
+        if (table is null)
+            return;
+        _removedFrom = null;
+        await RunAsync(async () =>
+        {
+            _schema = await Api.GetSchemaAsync(Db, table);
+            _preview = await Api.RemoveDuplicatesAsync(Db, table, dryRun: true);
+        });
+    }
+
+    private async Task RemoveAsync()
+    {
+        var table = _table;
+        if (table is null)
+            return;
+        DedupResultDto? result = null;
+        if (await RunAsync(async () => result = await Api.RemoveDuplicatesAsync(Db, table, dryRun: false)))
+        {
+            _preview = null;
+            _removedFrom = table;
+            Info = $"Вилучено рядків: {result!.RemovedCount}. Не забудьте зберегти базу.";
+        }
+    }
+}
