@@ -1,0 +1,132 @@
+syntax = "proto3";
+
+option csharp_namespace = "TabularDb.Contracts.Grpc";
+
+package tabulardb;
+
+service TabularDbService {
+  rpc ListDatabases (Empty) returns (DatabaseList);
+  rpc CreateDatabase (DbRef) returns (Empty);
+  rpc DeleteDatabase (DbRef) returns (Empty);
+  rpc SaveDatabase (DbRef) returns (Empty);
+  rpc LoadDatabase (DbRef) returns (Empty);
+  rpc ExportDatabase (DbRef) returns (FileContent);
+  rpc ImportDatabase (ImportRequest) returns (Empty);
+
+  rpc ListTables (DbRef) returns (TableList);
+  rpc GetSchema (TableRef) returns (SchemaMsg);
+  rpc CreateTable (CreateTableRequest) returns (Empty);
+  rpc DropTable (TableRef) returns (Empty);
+
+  rpc GetRows (GetRowsRequest) returns (RowPage);
+  rpc AddRow (AddRowRequest) returns (RowMsg);
+  rpc UpdateRow (UpdateRowRequest) returns (RowMsg);
+  rpc DeleteRow (RowRef) returns (Empty);
+
+  rpc RemoveDuplicates (DedupRequest) returns (DedupReply);
+}
+
+message Empty {}
+
+message DbRef {
+  string db_name = 1;
+}
+
+message DatabaseInfo {
+  string name = 1;
+  bool is_loaded = 2;
+  bool is_modified = 3;
+}
+
+message DatabaseList {
+  repeated DatabaseInfo databases = 1;
+  repeated string types = 2;
+}
+
+message FileContent {
+  string file_name = 1;
+  string content = 2;
+}
+
+message ImportRequest {
+  string db_name = 1;
+  string content = 2;
+  bool overwrite = 3;
+}
+
+message TableRef {
+  string db_name = 1;
+  string table_name = 2;
+}
+
+message TableList {
+  repeated string tables = 1;
+  bool is_modified = 2;
+}
+
+message FieldMsg {
+  string name = 1;
+  string type = 2;
+}
+
+message SchemaMsg {
+  string table_name = 1;
+  repeated FieldMsg fields = 2;
+}
+
+message CreateTableRequest {
+  string db_name = 1;
+  string table_name = 2;
+  repeated FieldMsg fields = 3;
+}
+
+message Cell {
+  optional string value = 1;
+}
+
+message RowMsg {
+  int64 id = 1;
+  repeated Cell cells = 2;
+}
+
+message GetRowsRequest {
+  string db_name = 1;
+  string table_name = 2;
+  int32 skip = 3;
+  int32 take = 4;
+}
+
+message RowPage {
+  repeated RowMsg rows = 1;
+  int32 total = 2;
+}
+
+message AddRowRequest {
+  string db_name = 1;
+  string table_name = 2;
+  repeated Cell cells = 3;
+}
+
+message UpdateRowRequest {
+  string db_name = 1;
+  string table_name = 2;
+  int64 id = 3;
+  repeated Cell cells = 4;
+}
+
+message RowRef {
+  string db_name = 1;
+  string table_name = 2;
+  int64 id = 3;
+}
+
+message DedupRequest {
+  string db_name = 1;
+  string table_name = 2;
+  bool dry_run = 3;
+}
+
+message DedupReply {
+  int32 removed_count = 1;
+  repeated RowMsg removed_rows = 2;
+}
