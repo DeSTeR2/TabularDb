@@ -1,0 +1,24 @@
+<nav class="crumbs" aria-label="Розташування">
+    <a href="">Бази даних</a>
+    @if (Db is not null)
+    {
+        <span aria-hidden="true">/</span>
+        <a href="@Links.Database(Db)" aria-current="@(Table is null && Current is null ? "page" : null)">@Db</a>
+    }
+    @if (Db is not null && Table is not null)
+    {
+        <span aria-hidden="true">/</span>
+        <a href="@Links.Table(Db, Table)" aria-current="@(Current is null ? "page" : null)">@Table</a>
+    }
+    @if (Current is not null)
+    {
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">@Current</span>
+    }
+</nav>
+
+@code {
+    [Parameter] public string? Db { get; set; }
+    [Parameter] public string? Table { get; set; }
+    [Parameter] public string? Current { get; set; }
+}

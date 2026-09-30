@@ -1,23 +1,27 @@
 @if (Busy)
 {
-    <p>Завантаження…</p>
+    <div class="progress" role="progressbar" aria-label="Завантаження…"></div>
 }
 @if (Error is not null)
 {
-    <p><strong>Помилка:</strong> @Error.Message</p>
-    @if (Error.Errors.Count > 0)
-    {
-        <ul>
-            @foreach (var error in Error.Errors)
-            {
-                <li>@error</li>
-            }
-        </ul>
-    }
+    <div class="note note-error" role="alert">
+        <p><strong>Помилка:</strong> @Error.Message</p>
+        @if (Error.Errors.Count > 0)
+        {
+            <ul>
+                @foreach (var error in Error.Errors)
+                {
+                    <li>@error</li>
+                }
+            </ul>
+        }
+    </div>
 }
 @if (!string.IsNullOrEmpty(Info))
 {
-    <p>@Info</p>
+    <div class="note note-info" role="status">
+        <p>@Info</p>
+    </div>
 }
 
 @code {

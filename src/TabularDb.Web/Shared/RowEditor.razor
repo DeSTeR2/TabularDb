@@ -1,41 +1,62 @@
 @using TabularDb.Core.Types
 
-<fieldset>
-    <legend>@(Row is null ? "Новий рядок" : $"Рядок {Row.Id}")</legend>
-    <form @onsubmit="SubmitAsync">
-        <table cellpadding="2">
+<section class="panel editor" aria-labelledby="row-editor-title">
+    <h2 id="row-editor-title">@(Row is null ? "Новий рядок" : $"Рядок {Row.Id}")</h2>
+    <form @onsubmit="SubmitAsync" @onkeydown="OnKeyDown">
+        <div class="editor-fields">
             @for (var i = 0; i < Schema.Fields.Count; i++)
             {
                 var index = i;
                 var field = Schema.Fields[index];
-                <tr>
-                    <td><label for="field-@index">@field.Name (@field.Type)</label></td>
-                    <td><input id="field-@index" @bind="_values[index]" size="14" /></td>
-                    <td>@Hint(field.Type)</td>
-                    <td>@if (_errors[index] is { } error) { <strong>@error</strong> }</td>
-                </tr>
+                var error = _errors[index];
+                <div class="field">
+                    <label for="field-@index">@field.Name <span class="muted">@field.Type</span></label>
+                    @if (index == 0)
+                    {
+                        <input id="field-@index" @ref="_first" @bind="_values[index]" autocomplete="off"
+                               aria-invalid="@(error is not null ? "true" : null)" aria-describedby="hint-@index" />
+                    }
+                    else
+                    {
+                        <input id="field-@index" @bind="_values[index]" autocomplete="off"
+                               aria-invalid="@(error is not null ? "true" : null)" aria-describedby="hint-@index" />
+                    }
+                    @if (error is not null)
+                    {
+                        <span id="hint-@index" class="field-error">@error</span>
+                    }
+                    else
+                    {
+                        <span id="hint-@index" class="field-help">@Hint(field.Type)</span>
+                    }
+                </div>
             }
-        </table>
-        <p>Порожнє поле означає відсутнє значення.</p>
+        </div>
         @if (_otherErrors.Count > 0)
         {
-            <ul>
-                @foreach (var error in _otherErrors)
-                {
-                    <li>@error</li>
-                }
-            </ul>
+            <div class="note note-error" role="alert">
+                <ul style="margin: 0">
+                    @foreach (var error in _otherErrors)
+                    {
+                        <li>@error</li>
+                    }
+                </ul>
+            </div>
         }
-        <button type="submit" disabled="@_busy">Зберегти</button>
-        <button type="button" disabled="@_busy" @onclick="OnCancel">Скасувати</button>
+        <div class="editor-actions">
+            <button type="submit" class="primary" disabled="@_busy">@(Row is null ? "Додати рядок" : "Зберегти зміни")</button>
+            <button type="button" class="quiet" disabled="@_busy" @onclick="OnCancel">Скасувати</button>
+            <p class="muted">Порожнє поле означає відсутнє значення. Esc — закрити.</p>
+        </div>
     </form>
-</fieldset>
+</section>
 
 @code {
     private string[] _values = [];
     private string?[] _errors = [];
     private List<string> _otherErrors = [];
     private bool _busy;
+    private ElementReference _first;
 
     [Parameter, EditorRequired] public TableSchemaDto Schema { get; set; } = null!;
     [Parameter] public RowDto? Row { get; set; }
@@ -47,6 +68,18 @@
         _values = Schema.Fields.Select((_, i) => Row?.Values.ElementAtOrDefault(i) ?? "").ToArray();
         _errors = new string?[Schema.Fields.Count];
         _otherErrors = [];
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Schema.Fields.Count > 0)
+            await _first.FocusAsync();
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape" && !_busy)
+            await OnCancel.InvokeAsync();
     }
 
     private static string Hint(string? type) =>

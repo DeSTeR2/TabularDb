@@ -3,57 +3,80 @@
 
 <PageTitle>@Db</PageTitle>
 
-<h1>База «@Db»</h1>
+<Breadcrumbs Db="@Db" />
+<div class="title-row">
+    <h1>@Db</h1>
+    @if (_tables is not null)
+    {
+        @if (_tables.IsModified)
+        {
+            <span class="status unsaved">є незбережені зміни</span>
+        }
+        else
+        {
+            <span class="status saved">усі зміни збережено</span>
+        }
+    }
+</div>
 
 <Messages Busy="Busy" Error="Error" Info="@Info" />
 
 @if (_tables is not null)
 {
-    <p>Стан: @(_tables.IsModified ? "є незбережені зміни" : "усі зміни збережено")</p>
-    <p>
-        <button type="button" disabled="@Busy" @onclick="SaveAsync">Зберегти на диск</button>
+    <div class="toolbar">
+        <button type="button" class="@(_tables.IsModified ? "primary" : null)" disabled="@Busy" @onclick="SaveAsync">Зберегти на диск</button>
         @if (_tables.IsModified)
         {
-            <ConfirmButton Text="Перечитати з диска" Question="Незбережені зміни буде втрачено. Продовжити?"
+            <ConfirmButton Text="Перечитати з диска" Question="Незбережені зміни буде втрачено."
                            Disabled="Busy" OnConfirm="ReloadAsync" />
         }
         else
         {
             <button type="button" disabled="@Busy" @onclick="ReloadAsync">Перечитати з диска</button>
         }
-        <a href="@Api.ExportUrl(Db)" download>Експортувати у файл</a>
-    </p>
+        <a class="btn" href="@Api.ExportUrl(Db)" download>Експортувати у файл</a>
+    </div>
 
-    <h2>Таблиці</h2>
+    <div class="title-row" style="margin: 36px 0 12px">
+        <h2 style="margin: 0">Таблиці <span class="count">@_tables.Tables.Count</span></h2>
+        <span class="spacer" style="flex: 1"></span>
+        @if (_tables.Tables.Count > 0)
+        {
+            <a class="btn quiet" href="@Links.Dedup(Db)">Вилучення повторів</a>
+            <a class="btn primary" href="@Links.NewTable(Db)">Нова таблиця</a>
+        }
+    </div>
+
     @if (_tables.Tables.Count == 0)
     {
-        <p>Таблиць ще немає.</p>
+        <div class="empty">
+            <p>У цій базі ще немає таблиць.</p>
+            <a class="btn primary" href="@Links.NewTable(Db)">Створити таблицю</a>
+        </div>
     }
     else
     {
-        <table border="1" cellpadding="4">
-            <thead>
-                <tr><th>Таблиця</th><th>Дії</th></tr>
-            </thead>
-            <tbody>
-                @foreach (var table in _tables.Tables)
-                {
-                    <tr @key="table">
-                        <td><a href="@Links.Table(Db, table)">@table</a></td>
-                        <td>
-                            <a href="@Links.Dedup(Db, table)">Вилучити повтори</a>
-                            <ConfirmButton Text="Видалити" Question="@($"Видалити таблицю '{table}' разом з рядками?")"
-                                           Disabled="Busy" OnConfirm="() => DropAsync(table)" />
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+        <div class="grid-wrap">
+            <table class="data">
+                <thead>
+                    <tr><th>Таблиця</th><th class="actions"><span class="visually-hidden">Дії</span></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var table in _tables.Tables)
+                    {
+                        <tr @key="table">
+                            <td><a class="row-link" href="@Links.Table(Db, table)">@table</a></td>
+                            <td class="actions">
+                                <a class="btn small quiet" href="@Links.Dedup(Db, table)">Вилучити повтори</a>
+                                <ConfirmButton Text="Видалити" Question="@($"Видалити таблицю «{table}» разом з рядками?")"
+                                               Class="small quiet danger" Disabled="Busy" OnConfirm="() => DropAsync(table)" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
     }
-    <p>
-        <a href="@Links.NewTable(Db)">Нова таблиця</a> |
-        <a href="@Links.Dedup(Db)">Вилучення повторюваних рядків</a>
-    </p>
 }
 
 @code {
@@ -76,7 +99,7 @@
     private Task ReloadAsync() => ActAsync(() => Api.LoadDatabaseAsync(Db), "Базу перечитано з диска.");
 
     private Task DropAsync(string table) =>
-        ActAsync(() => Api.DropTableAsync(Db, table), $"Таблицю '{table}' видалено.");
+        ActAsync(() => Api.DropTableAsync(Db, table), $"Таблицю «{table}» видалено.");
 
     private async Task ActAsync(Func<Task> action, string info)
     {

@@ -3,7 +3,13 @@
 
 <PageTitle>Бази даних</PageTitle>
 
-<h1>Бази даних</h1>
+<div class="title-row">
+    <h1>Бази даних</h1>
+    @if (_list is { Databases.Count: > 0 })
+    {
+        <span class="count">@_list.Databases.Count</span>
+    }
+</div>
 
 <Messages Busy="Busy" Error="Error" Info="@Info" />
 
@@ -11,43 +17,86 @@
 {
     @if (_list.Databases.Count == 0)
     {
-        <p>Баз даних ще немає.</p>
+        <div class="empty">
+            <p>Баз даних ще немає. Створіть першу або імпортуйте файл <code>.tdb.json</code>.</p>
+        </div>
     }
     else
     {
-        <table border="1" cellpadding="4">
-            <thead>
-                <tr><th>Назва</th><th>Стан</th><th>Дії</th></tr>
-            </thead>
-            <tbody>
-                @foreach (var db in _list.Databases)
-                {
-                    <tr @key="db.Name">
-                        <td><a href="@Links.Database(db.Name)">@db.Name</a></td>
-                        <td>@(db.IsModified ? "є незбережені зміни" : db.IsLoaded ? "відкрита" : "збережена на диску")</td>
-                        <td>
-                            <ConfirmButton Text="Видалити" Question="@($"Видалити базу '{db.Name}' разом з файлом?")"
-                                           Disabled="Busy" OnConfirm="() => DeleteAsync(db.Name)" />
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+        <div class="grid-wrap">
+            <table class="data">
+                <thead>
+                    <tr><th>Назва</th><th>Стан</th><th class="actions"><span class="visually-hidden">Дії</span></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var db in _list.Databases)
+                    {
+                        <tr @key="db.Name">
+                            <td><a class="row-link" href="@Links.Database(db.Name)">@db.Name</a></td>
+                            <td>
+                                @if (db.IsModified)
+                                {
+                                    <span class="status unsaved">є незбережені зміни</span>
+                                }
+                                else if (db.IsLoaded)
+                                {
+                                    <span class="status saved">відкрита, усе збережено</span>
+                                }
+                                else
+                                {
+                                    <span class="status">збережена на диску</span>
+                                }
+                            </td>
+                            <td class="actions">
+                                <ConfirmButton Text="Видалити" Question="@($"Видалити базу «{db.Name}» разом з файлом?")"
+                                               Class="small quiet danger" Disabled="Busy" OnConfirm="() => DeleteAsync(db.Name)" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
     }
 }
 
-<h2>Нова база</h2>
-<form @onsubmit="CreateAsync">
-    <label>Назва: <input @bind="_newName" maxlength="64" /></label>
-    <button type="submit" disabled="@Busy">Створити</button>
-</form>
-<p>Назва може містити літери, цифри, «_» та «-».</p>
+<div class="split">
+    <section class="panel" aria-labelledby="new-db">
+        <h2 id="new-db">Нова база</h2>
+        <form class="inline-form" @onsubmit="CreateAsync">
+            <label class="field">
+                <span>Назва</span>
+                <input @bind="_newName" @bind:event="oninput" maxlength="64" placeholder="напр. school_2026" aria-describedby="new-db-help" />
+            </label>
+            <button type="submit" class="primary" disabled="@(Busy || string.IsNullOrWhiteSpace(_newName))">Створити базу</button>
+        </form>
+        <p id="new-db-help" class="field-help" style="margin-top: 8px">Літери, цифри, «_» та «-».</p>
+    </section>
 
-<h2>Імпорт з файлу</h2>
-<p><InputFile OnChange="SelectFile" accept=".json" /></p>
-<p><label>Назва бази: <input @bind="_importName" maxlength="64" /></label></p>
-<p><label><input type="checkbox" @bind="_overwrite" /> Замінити, якщо база з такою назвою вже існує</label></p>
-<p><button type="button" disabled="@(Busy || _file is null)" @onclick="ImportAsync">Імпортувати</button></p>
+    <section class="panel" aria-labelledby="import-db">
+        <h2 id="import-db">Імпорт з файлу</h2>
+        <label class="file-pick">
+            <InputFile OnChange="SelectFile" accept=".json" />
+            @if (_file is null)
+            {
+                <span><strong>Оберіть файл</strong> або перетягніть його сюди (.tdb.json)</span>
+            }
+            else
+            {
+                <span class="file-name">@_file.Name</span>
+                <span>@FormatSize(_file.Size)</span>
+            }
+        </label>
+        <label class="field">
+            <span>Назва бази</span>
+            <input @bind="_importName" @bind:event="oninput" maxlength="64" />
+        </label>
+        <label class="check">
+            <input type="checkbox" @bind="_overwrite" />
+            Замінити, якщо база з такою назвою вже існує
+        </label>
+        <button type="button" class="primary" disabled="@(Busy || _file is null)" @onclick="ImportAsync">Імпортувати</button>
+    </section>
+</div>
 
 @code {
     private DatabaseListDto? _list;
@@ -76,8 +125,15 @@
     private async Task DeleteAsync(string name)
     {
         if (await RunAsync(() => Api.DeleteDatabaseAsync(name)) && await RefreshAsync())
-            Info = $"Базу '{name}' видалено.";
+            Info = $"Базу «{name}» видалено.";
     }
+
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} Б",
+        < 1024 * 1024 => $"{bytes / 1024.0:0.#} КБ",
+        _ => $"{bytes / 1024.0 / 1024.0:0.#} МБ",
+    };
 
     private void SelectFile(InputFileChangeEventArgs e)
     {
@@ -106,6 +162,9 @@
             await Api.ImportDatabaseAsync(name, stream, file.Name, _overwrite);
         });
         if (ok && await RefreshAsync())
-            Info = $"Базу '{name}' імпортовано.";
+        {
+            _file = null;
+            Info = $"Базу «{name}» імпортовано.";
+        }
     }
 }

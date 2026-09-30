@@ -3,8 +3,9 @@
 
 <PageTitle>Вилучення повторів — @Db</PageTitle>
 
-<p><a href="@Links.Database(Db)">← База «@Db»</a></p>
+<Breadcrumbs Db="@Db" Current="Вилучення повторів" />
 <h1>Вилучення повторюваних рядків</h1>
+<p class="explain">Порівнюються значення після розбору, тому 9:05 і 09:05:00 вважаються однаковими. Лишається перше входження кожного рядка.</p>
 
 <Messages Busy="Busy" Error="Error" Info="@Info" />
 
@@ -12,13 +13,16 @@
 {
     @if (_tables.Count == 0)
     {
-        <p>У базі немає таблиць.</p>
+        <div class="empty">
+            <p>У базі немає таблиць.</p>
+            <a class="btn primary" href="@Links.NewTable(Db)">Створити таблицю</a>
+        </div>
     }
     else
     {
-        <p>
-            <label>
-                Таблиця:
+        <div class="inline-form" style="margin: 24px 0">
+            <label class="field" style="flex: 0 1 280px">
+                <span>Таблиця</span>
                 <select value="@_table" @onchange="SelectTable">
                     @foreach (var table in _tables)
                     {
@@ -26,10 +30,12 @@
                     }
                 </select>
             </label>
-            <button type="button" disabled="@Busy" @onclick="PreviewAsync">Переглянути</button>
-            <button type="button" disabled="@(Busy || _preview is not { RemovedCount: > 0 })" @onclick="RemoveAsync">Вилучити</button>
-        </p>
-        <p>Порівнюються значення після розбору, тому 9:05 і 09:05:00 вважаються однаковими. Лишається перше входження.</p>
+            <button type="button" class="@(_preview is null ? "primary" : null)" disabled="@Busy" @onclick="PreviewAsync">Знайти повтори</button>
+            @if (_preview is { RemovedCount: > 0 })
+            {
+                <button type="button" class="danger-solid" disabled="@Busy" @onclick="RemoveAsync">Вилучити @_preview.RemovedCount</button>
+            }
+        </div>
     }
 }
 
@@ -37,46 +43,62 @@
 {
     @if (_preview.RemovedCount == 0)
     {
-        <p>Повторюваних рядків немає.</p>
+        <div class="note note-info" role="status"><p>У таблиці «@_table» повторюваних рядків немає.</p></div>
     }
     else
     {
         <p>
-            Буде вилучено рядків: @_preview.RemovedCount
+            <span class="big-number">@_preview.RemovedCount</span>
+            <span>повторюваних рядків буде вилучено</span>
             @if (_preview.RemovedRows.Count < _preview.RemovedCount)
             {
-                <span>(показано перші @_preview.RemovedRows.Count)</span>
+                <span class="muted">(нижче показано перші @_preview.RemovedRows.Count)</span>
             }
         </p>
-        <table border="1" cellpadding="4">
-            <thead>
-                <tr>
-                    <th>id</th>
-                    @foreach (var field in _schema.Fields)
-                    {
-                        <th>@field.Name : @field.Type</th>
-                    }
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var row in _preview.RemovedRows)
-                {
+        <div class="grid-wrap tall">
+            <table class="data">
+                <thead>
                     <tr>
-                        <td>@row.Id</td>
-                        @foreach (var value in row.Values)
+                        <th class="id">id</th>
+                        @foreach (var field in _schema.Fields)
                         {
-                            <td>@value</td>
+                            <th class="@Cells.Align(field.Type)">@field.Name<span class="type">@field.Type</span></th>
                         }
                     </tr>
-                }
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    @foreach (var row in _preview.RemovedRows)
+                    {
+                        <tr>
+                            <td class="id">@row.Id</td>
+                            @for (var i = 0; i < row.Values.Count; i++)
+                            {
+                                var value = row.Values[i];
+                                <td class="@Cells.Align(_schema.Fields.ElementAtOrDefault(i)?.Type)">
+                                    @if (value is null)
+                                    {
+                                        <span class="null" title="немає значення">—</span>
+                                    }
+                                    else
+                                    {
+                                        @value
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
     }
 }
 
 @if (_removedFrom is not null)
 {
-    <p><a href="@Links.Table(Db, _removedFrom)">Відкрити таблицю «@_removedFrom»</a></p>
+    <div class="toolbar">
+        <a class="btn" href="@Links.Table(Db, _removedFrom)">Відкрити таблицю «@_removedFrom»</a>
+        <a class="btn" href="@Links.Database(Db)">Перейти до бази, щоб зберегти</a>
+    </div>
 }
 
 @code {

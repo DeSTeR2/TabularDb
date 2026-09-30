@@ -1,21 +1,47 @@
 @if (_asking)
 {
-    <span>@Question </span>
-    <button type="button" disabled="@Disabled" @onclick="ConfirmAsync">Так</button>
-    <button type="button" @onclick="() => _asking = false">Ні</button>
+    <span class="confirm" role="group" aria-label="@Question" @onkeydown="OnKeyDown">
+        <span class="confirm-q">@Question</span>
+        <button type="button" class="small danger-solid" disabled="@Disabled" @onclick="ConfirmAsync">@Text</button>
+        <button type="button" class="small" @ref="_cancel" @onclick="() => _asking = false">Скасувати</button>
+    </span>
 }
 else
 {
-    <button type="button" disabled="@Disabled" @onclick="() => _asking = true">@Text</button>
+    <button type="button" class="@Class" disabled="@Disabled" @onclick="Ask">@Text</button>
 }
 
 @code {
     private bool _asking;
+    private bool _focusCancel;
+    private ElementReference _cancel;
 
     [Parameter, EditorRequired] public string Text { get; set; } = "";
     [Parameter, EditorRequired] public string Question { get; set; } = "";
     [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string? Class { get; set; }
     [Parameter] public EventCallback OnConfirm { get; set; }
+
+    private void Ask()
+    {
+        _asking = true;
+        _focusCancel = true;
+    }
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+            _asking = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusCancel && _asking)
+        {
+            _focusCancel = false;
+            await _cancel.FocusAsync();
+        }
+    }
 
     private async Task ConfirmAsync()
     {

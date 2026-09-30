@@ -3,18 +3,25 @@
 
 <PageTitle>@Table — @Db</PageTitle>
 
-<p><a href="@Links.Database(Db)">← База «@Db»</a></p>
-<h1>Таблиця «@Table»</h1>
+<Breadcrumbs Db="@Db" Table="@Table" />
+<div class="title-row">
+    <h1>@Table</h1>
+    @if (_page is not null)
+    {
+        <span class="count">@RowCount(_page.Total)</span>
+    }
+</div>
 
 <Messages Busy="Busy" Error="Error" Info="@Info" />
 
 @if (_schema is not null)
 {
-    <p>
-        <button type="button" disabled="@Busy" @onclick="StartAdd">Додати рядок</button>
+    <div class="toolbar">
+        <button type="button" class="primary" disabled="@(Busy || (_editing && _editRow is null))" @onclick="StartAdd">Додати рядок</button>
         <button type="button" disabled="@Busy" @onclick="LoadPageAsync">Оновити</button>
-        <a href="@Links.Dedup(Db, Table)">Вилучити повторювані рядки</a>
-    </p>
+        <span class="spacer"></span>
+        <a class="btn quiet" href="@Links.Dedup(Db, Table)">Вилучити повторювані рядки</a>
+    </div>
 
     @if (_editing)
     {
@@ -23,44 +30,67 @@
 
     @if (_page is not null)
     {
-        <table border="1" cellpadding="4">
-            <thead>
-                <tr>
-                    <th>id</th>
-                    @foreach (var field in _schema.Fields)
-                    {
-                        <th>@field.Name : @field.Type</th>
-                    }
-                    <th>Дії</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var row in _page.Rows)
-                {
-                    <tr @key="row.Id">
-                        <td>@row.Id</td>
-                        @foreach (var value in row.Values)
+        <div class="grid-wrap tall">
+            <table class="data">
+                <thead>
+                    <tr>
+                        <th class="id">id</th>
+                        @foreach (var field in _schema.Fields)
                         {
-                            <td>@value</td>
+                            <th class="@Cells.Align(field.Type)">@field.Name<span class="type">@field.Type</span></th>
                         }
-                        <td>
-                            <button type="button" disabled="@Busy" @onclick="() => StartEdit(row)">Редагувати</button>
-                            <ConfirmButton Text="Видалити" Question="@($"Видалити рядок {row.Id}?")"
-                                           Disabled="Busy" OnConfirm="() => DeleteRowAsync(row.Id)" />
-                        </td>
+                        <th class="actions"><span class="visually-hidden">Дії</span></th>
                     </tr>
-                }
-            </tbody>
-        </table>
-        @if (_page.Total == 0)
+                </thead>
+                <tbody>
+                    @foreach (var row in _page.Rows)
+                    {
+                        <tr @key="row.Id">
+                            <td class="id">@row.Id</td>
+                            @for (var i = 0; i < row.Values.Count; i++)
+                            {
+                                var value = row.Values[i];
+                                <td class="@Cells.Align(_schema.Fields.ElementAtOrDefault(i)?.Type)">
+                                    @if (value is null)
+                                    {
+                                        <span class="null" title="немає значення">—</span>
+                                    }
+                                    else
+                                    {
+                                        @value
+                                    }
+                                </td>
+                            }
+                            <td class="actions">
+                                <button type="button" class="small quiet" disabled="@Busy" @onclick="() => StartEdit(row)">Редагувати</button>
+                                <ConfirmButton Text="Видалити" Question="@($"Видалити рядок {row.Id}?")"
+                                               Class="small quiet danger" Disabled="Busy" OnConfirm="() => DeleteRowAsync(row.Id)" />
+                            </td>
+                        </tr>
+                    }
+                    @if (_page.Total == 0)
+                    {
+                        <tr class="empty-row">
+                            <td colspan="@(_schema.Fields.Count + 2)">
+                                <p style="margin: 0 auto 12px">У таблиці ще немає рядків.</p>
+                                <button type="button" class="primary" disabled="@(Busy || _editing)" @onclick="StartAdd">Додати перший рядок</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (_page.Total > 0)
         {
-            <p>Рядків немає.</p>
+            <div class="pager">
+                <span>@(_skip + 1)–@(_skip + _page.Rows.Count) з @_page.Total</span>
+                @if (_page.Total > PageSize)
+                {
+                    <button type="button" class="small" aria-label="Попередня сторінка" disabled="@(Busy || _skip == 0)" @onclick="() => ChangePageAsync(-PageSize)">◀</button>
+                    <button type="button" class="small" aria-label="Наступна сторінка" disabled="@(Busy || _skip + PageSize >= _page.Total)" @onclick="() => ChangePageAsync(PageSize)">▶</button>
+                }
+            </div>
         }
-        <p>
-            <button type="button" disabled="@(Busy || _skip == 0)" @onclick="() => ChangePageAsync(-PageSize)">◀</button>
-            @(_page.Total == 0 ? 0 : _skip + 1)–@(_skip + _page.Rows.Count) з @_page.Total
-            <button type="button" disabled="@(Busy || _skip + PageSize >= _page.Total)" @onclick="() => ChangePageAsync(PageSize)">▶</button>
-        </p>
     }
 }
 
@@ -76,6 +106,17 @@
 
     [Parameter] public string Db { get; set; } = "";
     [Parameter] public string Table { get; set; } = "";
+
+    private static string RowCount(int n)
+    {
+        var word = (n % 10, n % 100) switch
+        {
+            (1, not 11) => "рядок",
+            (2 or 3 or 4, not (12 or 13 or 14)) => "рядки",
+            _ => "рядків",
+        };
+        return $"{n} {word}";
+    }
 
     protected override async Task OnParametersSetAsync()
     {
